@@ -11,7 +11,7 @@ var (
 var addCmd = &cobra.Command{
 	Use:   "add <source>",
 	Short: "添加规范源并拉取（首次初始化）",
-	Long: `添加规范源并拉取到本地（首次初始化，写 .goxctl-claude.yaml）。
+	Long: `添加规范源并拉取到本地（首次初始化，写 .gox-claude.yaml）。
 
 source 可简写为 owner/repo（默认 github.com），也可写全 github.com/owner/repo。`,
 	Args: cobra.ExactArgs(1),

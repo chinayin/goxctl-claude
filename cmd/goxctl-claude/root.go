@@ -14,7 +14,7 @@ var rootCmd = &cobra.Command{
 	Use:   "claude",
 	Short: "团队 AI 协作配置（steering / CLAUDE.md）版本化同步",
 	Long: `claude 从规范源仓库按 git tag 同步 steering 文件到本地（默认 .kiro/steering），
-供 Kiro 与 Claude Code 共用，版本锁定在 .goxctl-claude.lock。
+供 Kiro 与 Claude Code 共用，版本锁定在 .gox-claude.lock。
 
 通常作为 goxctl 的子命令使用：goxctl claude <command>。`,
 	SilenceUsage:  true,
