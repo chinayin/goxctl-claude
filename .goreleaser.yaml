@@ -1,0 +1,32 @@
+# goreleaser v2 配置：构建多平台预编译二进制并发布到 GitHub Releases。
+# 二进制供 `goxctl extension install` 下载；规范数据（steering/）走 source tarball，与此无关。
+version: 2
+
+project_name: goxctl-claude
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/goxctl-claude
+    binary: goxctl-claude
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+
+archives:
+  # 产物名不含版本号：与 goxctl extension install 的平台后缀匹配规则对齐
+  - formats: ['tar.gz']
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: chinayin
+    name: goxctl-claude

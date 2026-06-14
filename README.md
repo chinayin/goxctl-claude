@@ -5,6 +5,16 @@
 它从规范源仓库按 git tag 同步 steering 文件到项目本地（默认 `.kiro/steering`），
 供 Kiro 与 Claude Code 共用；版本锁定在 `.gox-claude.lock`。
 
+## 安装
+
+无需 Go 环境（macOS / Linux，amd64 / arm64）：
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/chinayin/goxctl-claude/main/install.sh | sh
+```
+
+脚本会下载 goxctl 核心（若缺）与本扩展的预编译二进制（解压到 `~/.goxctl/bin` 与 `~/.goxctl/extensions`），全程不依赖 Go。
+
 ## 用法
 
 通常作为 goxctl 子命令使用：
