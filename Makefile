@@ -11,7 +11,7 @@ help: ## Show help
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  make %-13s - %s\n", $$1, $$2}'
 
 build: clean ## Compile
-	@go build -o bin/$(APP) .
+	@go build -o bin/$(APP) ./cmd/$(APP)
 
 run: build ## Run
 	@./bin/$(APP) --help

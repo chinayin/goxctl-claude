@@ -3,8 +3,6 @@
 // 通常作为 goxctl 的子命令运行：goxctl claude <command>。
 package main
 
-import "github.com/chinayin/goxctl-claude/internal/cmd"
-
 func main() {
-	cmd.Execute()
+	Execute()
 }
