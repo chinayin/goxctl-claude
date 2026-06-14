@@ -4,9 +4,10 @@ import "github.com/spf13/cobra"
 
 var removeCmd = &cobra.Command{
 	Use:   "remove",
-	Short: "移除受管文件与 manifest/lock（不碰项目自有文件）",
+	Short: "Remove managed files and manifest/lock (leaves your own files untouched)",
 	Args:  cobra.NoArgs,
-	RunE: func(_ *cobra.Command, _ []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		s, err := newSyncer()
 		if err != nil {
 			return err

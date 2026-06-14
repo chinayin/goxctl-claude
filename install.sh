@@ -7,7 +7,7 @@ set -u
 
 CORE_REPO="chinayin/goxctl"
 EXT_REPO="chinayin/goxctl-claude"
-INSTALL_DIR="${GOXCTL_BIN_DIR:-$HOME/.goxctl/bin}"
+INSTALL_DIR="${GOXCTL_BIN_DIR:-$HOME/.gox/bin}"
 
 # --- terminal detection ---
 

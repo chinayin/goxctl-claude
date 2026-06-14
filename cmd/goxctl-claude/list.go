@@ -8,9 +8,10 @@ import (
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "显示当前规范源、版本与受管文件",
+	Short: "Show the current source, version and managed files",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		s, err := newSyncer()
 		if err != nil {
 			return err

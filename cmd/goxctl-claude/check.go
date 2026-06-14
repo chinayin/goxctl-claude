@@ -8,9 +8,10 @@ import (
 
 var checkCmd = &cobra.Command{
 	Use:   "check",
-	Short: "校验本地受管文件与 lock 一致（CI 用）",
+	Short: "Verify local managed files match the lock (for CI)",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		s, err := newSyncer()
 		if err != nil {
 			return err
