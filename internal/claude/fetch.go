@@ -2,6 +2,7 @@ package claude
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -78,6 +79,37 @@ func (f *Fetcher) ResolveTag(ctx context.Context, ref RepoRef, tag string) (stri
 		return "", fmt.Errorf("claude: read sha: %w", err)
 	}
 	return string(sha), nil
+}
+
+// ResolveLatest 返回最新 release 的 tag 名，供 add 未指定版本时钉住具体版本（保持可复现）。
+func (f *Fetcher) ResolveLatest(ctx context.Context, ref RepoRef) (string, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", f.apiBase, ref.Owner, ref.Repo)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return "", fmt.Errorf("claude: build latest request: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	f.auth(req)
+
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("claude: resolve latest: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("claude: resolve latest: github status %d", resp.StatusCode)
+	}
+	var rel struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+		return "", fmt.Errorf("claude: decode latest release: %w", err)
+	}
+	if rel.TagName == "" {
+		return "", fmt.Errorf("claude: %s/%s has no latest release", ref.Owner, ref.Repo)
+	}
+	return rel.TagName, nil
 }
 
 // DownloadTarball 返回 tag 对应 tarball 的读取流，调用方负责 Close。

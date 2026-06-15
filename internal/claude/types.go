@@ -18,6 +18,8 @@ type Lock struct {
 }
 
 const (
+	// DefaultSource 是默认规范源仓库（add 未指定 source 时使用）。
+	DefaultSource = "chinayin/gox-claude-standards"
 	// DefaultTarget 是规范文件默认落地目录（Kiro 与 Claude Code 共用）。
 	DefaultTarget = ".kiro/steering"
 	// ManifestFile 是项目声明文件名。

@@ -4,13 +4,13 @@ import "github.com/spf13/cobra"
 
 var updateCmd = &cobra.Command{
 	Use:   "update [version]",
-	Short: "Pull the locked version (no arg) or upgrade to a given version",
-	Long: `Sync managed files in one of two modes:
+	Short: "Upgrade to the latest release (no arg) or switch to a given version",
+	Long: `Sync the standards in one of two modes:
 
-  no args     pull the version locked in .gox-claude.lock (restore on fresh clone / CI check, idempotent).
-  <version>   upgrade to that tag (e.g. v1.1.0) and rewrite the manifest and lock.
+  no args     upgrade to the latest release.
+  <version>   switch to that tag (e.g. v0.2.0).
 
-After upgrading, review the .kiro/steering changes via git diff before committing; the version is pinned in .gox-claude.lock.`,
+Both rewrite the manifest and lock; review the .kiro/steering changes via git diff before committing.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true

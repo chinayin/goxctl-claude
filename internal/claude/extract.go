@@ -11,45 +11,60 @@ import (
 	"strings"
 )
 
-// extractTarball 从 GitHub tarball 流中提取匹配 paths 的文件到 target。
+// claudeTemplateInTarball 是仓库内 CLAUDE.md 模板的路径（剥离顶层目录后）。
+// 它随规范一起按 tag 拉取，内容返回给调用方用于生成项目入口，不写入 target。
+const claudeTemplateInTarball = "CLAUDE.template.md"
+
+// extractTarball 从 GitHub tarball 流中提取匹配 paths 的文件到 target，
+// 并顺带返回仓库根 CLAUDE.template.md 的内容（若存在）。
 //
 // GitHub tarball 顶层有一个 "{repo}-{ref}/" 包裹目录，先剥离；paths 中的目录前缀
-// （如 "steering/"）也剥离，内容展平到 target 下。返回写入的受管文件相对 target 的路径，已排序。
-func extractTarball(r io.Reader, paths []string, target string) ([]string, error) {
+// （如 "steering/"）也剥离，内容展平到 target 下。返回写入的受管文件相对 target 的路径（已排序）
+// 与 CLAUDE 模板内容。
+func extractTarball(r io.Reader, paths []string, target string) (managed []string, claudeTemplate string, err error) {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("claude: open gzip: %w", err)
+		return nil, "", fmt.Errorf("claude: open gzip: %w", err)
 	}
 	defer gz.Close()
 
 	tr := tar.NewReader(gz)
-	var managed []string
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("claude: read tar: %w", err)
+			return nil, "", fmt.Errorf("claude: read tar: %w", err)
 		}
 		if hdr.Typeflag != tar.TypeReg {
 			continue
 		}
 
 		rel := stripTopDir(hdr.Name)
+
+		// CLAUDE 模板随规范一起拉取，内容返回（不写入 target，由 ensureEntrypoint 决定是否落地）
+		if rel == claudeTemplateInTarball {
+			b, err := io.ReadAll(tr)
+			if err != nil {
+				return nil, "", fmt.Errorf("claude: read template: %w", err)
+			}
+			claudeTemplate = string(b)
+			continue
+		}
+
 		sub, ok := matchPath(rel, paths)
 		if !ok {
 			continue
 		}
-
 		if err := writeFile(filepath.Join(target, sub), tr, hdr.FileInfo().Mode().Perm()); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		managed = append(managed, sub)
 	}
 
 	slices.Sort(managed)
-	return managed, nil
+	return managed, claudeTemplate, nil
 }
 
 // stripTopDir 去掉 GitHub tarball 的顶层包裹目录（第一段路径）。

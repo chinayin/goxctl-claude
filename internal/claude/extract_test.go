@@ -35,18 +35,20 @@ func makeTarball(t *testing.T, top string, files map[string]string) io.Reader {
 func TestExtractTarball_FlattensPathsAndFilters(t *testing.T) {
 	// Arrange：steering/ 下两个文件 + 一个仓库根文件（不应被取）
 	tb := makeTarball(t, "goxctl-claude-1.0.0", map[string]string{
-		"steering/rules.md": "RULES",
-		"steering/cli.md":   "CLI",
-		"README.md":         "README",
+		"steering/rules.md":  "RULES",
+		"steering/cli.md":    "CLI",
+		"README.md":          "README",
+		"CLAUDE.template.md": "TPL",
 	})
 	target := t.TempDir()
 
 	// Act
-	managed, err := extractTarball(tb, []string{"steering/"}, target)
+	managed, tmpl, err := extractTarball(tb, []string{"steering/"}, target)
 
-	// Assert：只取 steering/，前缀剥离后展平到 target
+	// Assert：只取 steering/，前缀剥离后展平到 target；CLAUDE 模板内容返回但不落盘
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cli.md", "rules.md"}, managed)
+	assert.Equal(t, "TPL", tmpl)
 
 	got, err := os.ReadFile(filepath.Join(target, "rules.md"))
 	require.NoError(t, err)

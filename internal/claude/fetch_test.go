@@ -42,6 +42,30 @@ func TestFetcher_ResolveTag_NotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestFetcher_ResolveLatest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/repos/chinayin/goxctl-claude/releases/latest", r.URL.Path)
+		_, _ = w.Write([]byte(`{"tag_name":"v3.1.0"}`))
+	}))
+	defer srv.Close()
+	f := NewFetcher(WithAPIBase(srv.URL))
+
+	tag, err := f.ResolveLatest(context.Background(), RepoRef{"chinayin", "goxctl-claude"})
+	require.NoError(t, err)
+	assert.Equal(t, "v3.1.0", tag)
+}
+
+func TestFetcher_ResolveLatest_NotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	f := NewFetcher(WithAPIBase(srv.URL))
+
+	_, err := f.ResolveLatest(context.Background(), RepoRef{"chinayin", "goxctl-claude"})
+	require.Error(t, err)
+}
+
 func TestFetcher_DownloadTarball_ThenExtract(t *testing.T) {
 	// Arrange：mock tarball 端点返回模拟 GitHub tarball
 	body, err := io.ReadAll(makeTarball(t, "goxctl-claude-1.0.0", map[string]string{
@@ -63,7 +87,7 @@ func TestFetcher_DownloadTarball_ThenExtract(t *testing.T) {
 	defer rc.Close()
 
 	target := t.TempDir()
-	managed, err := extractTarball(rc, []string{"steering/"}, target)
+	managed, _, err := extractTarball(rc, []string{"steering/"}, target)
 
 	// Assert
 	require.NoError(t, err)
