@@ -46,7 +46,7 @@ Also generates a top-level CLAUDE.md entrypoint if the project has none (left un
 		out := cmd.OutOrStdout()
 		fmt.Fprintf(out, "added %s@%s -> %s\n", m.Source, m.Version, m.Target)
 		if created {
-			fmt.Fprintf(out, "generated %s (team standards entrypoint)\n", claude.ClaudeMdFile)
+			fmt.Fprintf(out, "generated %s\n", claude.ClaudeMdFile)
 		} else {
 			fmt.Fprintf(out, "%s left as-is (already present, or no template in this version)\n", claude.ClaudeMdFile)
 		}
