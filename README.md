@@ -16,7 +16,7 @@
 curl -sSfL https://raw.githubusercontent.com/chinayin/goxctl-claude/main/install.sh | sh
 ```
 
-脚本会下载 goxctl 核心（若缺）与本扩展的预编译二进制（解压到 `~/.gox/bin` 与 `~/.gox/extensions`），全程不依赖 Go。
+脚本会下载 goxctl 核心（若缺，装到 `/usr/local/bin`，默认在 PATH）与本扩展二进制（装到 `~/.gox/extensions`，由核心管理），全程不依赖 Go。
 
 ## 用法
 

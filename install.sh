@@ -7,7 +7,7 @@ set -u
 
 CORE_REPO="chinayin/goxctl"
 EXT_REPO="chinayin/goxctl-claude"
-INSTALL_DIR="${GOXCTL_BIN_DIR:-$HOME/.gox/bin}"
+INSTALL_DIR="${GOXCTL_BIN_DIR:-/usr/local/bin}"
 
 # --- terminal detection ---
 
@@ -57,6 +57,24 @@ download() { # url output
 		curl --proto '=https' --tlsv1.2 -sSfL "$1" -o "$2"
 	else
 		wget --https-only --secure-protocol=TLSv1_2 -q "$1" -O "$2"
+	fi
+}
+
+# install_binary src dst —— 安装到默认在 PATH 的目录；目标不可写时回退 sudo。
+install_binary() {
+	local _src="$1" _dst="$2" _dir
+	_dir=$(dirname "$_dst")
+	if mkdir -p "$_dir" 2> /dev/null && [ -w "$_dir" ]; then
+		mv -f "$_src" "$_dst"
+		chmod 755 "$_dst"
+	elif command -v sudo > /dev/null 2>&1; then
+		info "installing to $_dir (requires sudo)"
+		sudo mkdir -p "$_dir"
+		sudo mv -f "$_src" "$_dst"
+		sudo chmod 755 "$_dst"
+	else
+		err "cannot write to $_dir and sudo not found; set GOXCTL_BIN_DIR to a writable dir"
+		exit 1
 	fi
 }
 
@@ -113,9 +131,8 @@ install_core() {
 		exit 1
 	fi
 
-	mkdir -p "$INSTALL_DIR"
-	tar -xzf "${_tmpdir}/${_asset}" -C "$INSTALL_DIR" goxctl
-	chmod 755 "${INSTALL_DIR}/goxctl"
+	tar -xzf "${_tmpdir}/${_asset}" -C "${_tmpdir}" goxctl
+	install_binary "${_tmpdir}/goxctl" "${INSTALL_DIR}/goxctl"
 	info "installed core: ${INSTALL_DIR}/goxctl"
 }
 
@@ -129,7 +146,7 @@ usage() {
 		"Options:" \
 		"  --version=VER   Extension version to install (default: latest)" \
 		"  --proxy=URL     HTTPS proxy for downloads" \
-		"  --dir=PATH      Install directory for the core (default: ~/.goxctl/bin)" \
+		"  --dir=PATH      Install directory for the core (default: /usr/local/bin)" \
 		"  --help          Show this help"
 }
 
@@ -167,7 +184,7 @@ main() {
 		install_core
 	fi
 	local _goxctl
-	_goxctl="$(command -v goxctl 2>/dev/null || echo "${INSTALL_DIR}/goxctl")"
+	_goxctl="$(command -v goxctl 2> /dev/null || echo "${INSTALL_DIR}/goxctl")"
 
 	# extension (installed by the core, which prefers prebuilt binaries)
 	local _extver=latest
