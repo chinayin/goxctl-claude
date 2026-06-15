@@ -13,7 +13,7 @@
 无需 Go 环境（macOS / Linux，amd64 / arm64）：
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/chinayin/goxctl-claude/main/install.sh | sh
+curl -sSfL https://github.com/chinayin/goxctl-claude/releases/latest/download/install.sh | sh
 ```
 
 脚本会下载 goxctl 核心（若缺，装到 `/usr/local/bin`，默认在 PATH）与本扩展二进制（装到 `~/.gox/extensions`，由核心管理），全程不依赖 Go。

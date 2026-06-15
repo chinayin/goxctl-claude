@@ -2,7 +2,7 @@
 # shellcheck disable=SC3043
 # goxctl-claude installer — installs the goxctl core (if missing) and the claude
 # extension from prebuilt binaries. No Go required.
-# Usage: curl -sSfL https://raw.githubusercontent.com/chinayin/goxctl-claude/main/install.sh | sh [-s -- [options]]
+# Usage: curl -sSfL https://github.com/chinayin/goxctl-claude/releases/latest/download/install.sh | sh [-s -- [options]]
 set -u
 
 CORE_REPO="chinayin/goxctl"
