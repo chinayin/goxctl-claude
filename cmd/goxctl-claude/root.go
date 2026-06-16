@@ -28,6 +28,9 @@ Typically used as a goxctl subcommand: goxctl claude <command>.`,
   # Upgrade to the latest standards release
   goxctl claude update
 
+  # Restore managed files from the lock when they are gitignored (CI / fresh clone)
+  goxctl claude install
+
   # Verify local files still match the lock (CI)
   goxctl claude check`,
 	// 不设 SilenceUsage：参数/flag 用法错误时显示 usage；业务错误在各 RunE 开头抑制。
@@ -66,7 +69,7 @@ func init() {
 	// 故自定义一个真名非 "help" 的隐藏命令、用别名 "help" 接管。
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.SetHelpCommand(newHiddenHelpCmd())
-	rootCmd.AddCommand(addCmd, updateCmd, removeCmd, listCmd, checkCmd)
+	rootCmd.AddCommand(addCmd, updateCmd, installCmd, removeCmd, listCmd, checkCmd)
 }
 
 // newHiddenHelpCmd 复刻 cobra 默认 help 命令的行为，但真名非 "help" 且 Hidden，

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/chinayin/goxctl-claude/internal/ui"
 )
@@ -66,7 +67,7 @@ func (s *Syncer) Add(ctx context.Context, source, version string, paths []string
 }
 
 // Update 升级规范：version 为空=升级到最新 release；非空=切到指定版本。
-// 两种情况都会改写 manifest 与 lock（steering 跟随项目进 git，新 clone 自带文件，无需“恢复”语义）。
+// 两种情况都会改写 manifest 与 lock；不改写 lock 的“按锁恢复”见 Install。
 func (s *Syncer) Update(ctx context.Context, version string) error {
 	m, err := LoadManifest(s.manifestPath())
 	if err != nil {
@@ -108,6 +109,45 @@ func (s *Syncer) Check() error {
 	return VerifyDigest(filepath.Join(s.dir, m.Target), l.Managed, l.Digest)
 }
 
+// Install 按 lock 锁定的 commit 物化受管文件到 target，不改写 manifest 与 lock。
+// 用于受管文件不进 git（被 gitignore）时的 CI / 新 clone bootstrap——相当于 npm ci：
+// 按不可变 commit（而非可被移动的 tag）下载，物化后校验 digest，与 lock 不符即报错。
+func (s *Syncer) Install(ctx context.Context) error {
+	l, err := LoadLock(s.lockPath())
+	if err != nil {
+		return err // lock 不存在 → ErrLockNotFound（先 add）
+	}
+	m, err := LoadManifest(s.manifestPath())
+	if err != nil {
+		return err // 需要 manifest 的 paths/target 才能定位与展平受管文件
+	}
+	ref, err := parseSource(m.Source)
+	if err != nil {
+		return err
+	}
+
+	ui.Stepf(os.Stdout, "Installing %s %s (commit %s)...", l.Source, l.Version, l.Commit)
+
+	// 按不可变 commit 下载（而非 tag——tag 可被移动），复现锁定的那一次
+	buf, err := s.downloadTarball(ctx, ref, l.Commit)
+	if err != nil {
+		return err
+	}
+
+	target := filepath.Join(s.dir, m.Target)
+	managed, _, err := extractTarball(bytes.NewReader(buf), m.Paths, target)
+	if err != nil {
+		return err
+	}
+
+	// 物化出的受管集合必须与 lock 记录一致，否则是 manifest.paths 与 lock 漂移
+	if !slices.Equal(managed, l.Managed) {
+		return fmt.Errorf("claude: installed files %v do not match lock %v; run 'goxctl claude update'", managed, l.Managed)
+	}
+	// 内容完整性：物化结果的整体 digest 必须等于 lock 锚定值
+	return VerifyDigest(target, l.Managed, l.Digest)
+}
+
 // Remove 移除受管文件并删除 manifest/lock；不碰项目自有文件。
 func (s *Syncer) Remove() error {
 	m, errM := LoadManifest(s.manifestPath())
@@ -147,17 +187,9 @@ func (s *Syncer) pull(ctx context.Context, m *Manifest, version string) (string,
 	ui.Stepf(os.Stdout, "Pulling %s %s...", m.Source, version)
 
 	// 先把 tarball 完整下载到内存（有界）：网络失败发生在删除旧文件之前，失败即无副作用
-	rc, err := s.fetcher.DownloadTarball(ctx, ref, version)
+	buf, err := s.downloadTarball(ctx, ref, version)
 	if err != nil {
 		return "", err
-	}
-	buf, err := io.ReadAll(io.LimitReader(rc, maxTarballBytes+1))
-	_ = rc.Close()
-	if err != nil {
-		return "", fmt.Errorf("claude: download %s@%s: %w", m.Source, version, err)
-	}
-	if int64(len(buf)) > maxTarballBytes {
-		return "", fmt.Errorf("claude: tarball %s@%s exceeds %d bytes", m.Source, version, maxTarballBytes)
 	}
 
 	target := filepath.Join(s.dir, m.Target)
@@ -192,6 +224,24 @@ func (s *Syncer) pull(ctx context.Context, m *Manifest, version string) (string,
 		return "", err
 	}
 	return claudeTemplate, nil
+}
+
+// downloadTarball 下载 gitref（tag 或 commit sha）的 tarball 到有界内存。
+// 完整读入内存后返回：网络失败发生在任何写盘之前，失败即无副作用。
+func (s *Syncer) downloadTarball(ctx context.Context, ref RepoRef, gitref string) ([]byte, error) {
+	rc, err := s.fetcher.DownloadTarball(ctx, ref, gitref)
+	if err != nil {
+		return nil, err
+	}
+	buf, err := io.ReadAll(io.LimitReader(rc, maxTarballBytes+1))
+	_ = rc.Close()
+	if err != nil {
+		return nil, fmt.Errorf("claude: download %s: %w", gitref, err)
+	}
+	if int64(len(buf)) > maxTarballBytes {
+		return nil, fmt.Errorf("claude: tarball %s exceeds %d bytes", gitref, maxTarballBytes)
+	}
+	return buf, nil
 }
 
 func removeManaged(target string, managed []string) error {

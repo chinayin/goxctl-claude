@@ -22,10 +22,12 @@ func fakeGitHub(t *testing.T, latestTag string, byTag map[string]map[string]stri
 		responses["/repos/o/r/releases/latest"] = []byte(`{"tag_name":"` + latestTag + `"}`)
 	}
 	for tag, files := range byTag {
-		responses["/repos/o/r/commits/"+tag] = []byte("sha-" + tag)
+		sha := "sha-" + tag
+		responses["/repos/o/r/commits/"+tag] = []byte(sha)
 		body, err := io.ReadAll(makeTarball(t, "r-"+tag, files))
 		require.NoError(t, err)
 		responses["/repos/o/r/tarball/"+tag] = body
+		responses["/repos/o/r/tarball/"+sha] = body // install 按 commit sha 下载
 	}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, ok := responses[r.URL.Path]
@@ -193,6 +195,111 @@ func TestSyncer_Update_NoArg_UsesLatest(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(dir, DefaultTarget, "rules.md"))
 	require.NoError(t, err)
 	assert.Equal(t, "R2", string(got))
+}
+
+func TestSyncer_Install_RestoresFromLock(t *testing.T) {
+	// 模拟方案 B：.kiro/steering 被 gitignore，clone 后只有 manifest+lock，install 按锁恢复。
+	srv := fakeGitHub(t, "", map[string]map[string]string{
+		"v1.0.0": {"steering/rules.md": "RULES-v1", "steering/cli.md": "CLI"},
+	})
+	defer srv.Close()
+	dir := t.TempDir()
+	ctx := context.Background()
+
+	// 首次 add 生成 manifest+lock
+	s := NewSyncer(dir, NewFetcher(WithAPIBase(srv.URL)))
+	_, err := s.Add(ctx, "github.com/o/r", "v1.0.0", []string{"steering/"}, "")
+	require.NoError(t, err)
+
+	// 受管文件不进 git：删掉它们，仅留 manifest+lock
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, DefaultTarget)))
+	lockBefore, err := os.ReadFile(filepath.Join(dir, LockFile))
+	require.NoError(t, err)
+	manifestBefore, err := os.ReadFile(filepath.Join(dir, ManifestFile))
+	require.NoError(t, err)
+
+	// Act：install 按 lock 物化
+	s2 := NewSyncer(dir, NewFetcher(WithAPIBase(srv.URL)))
+	require.NoError(t, s2.Install(ctx))
+
+	// Assert：受管文件恢复、内容正确
+	got, err := os.ReadFile(filepath.Join(dir, DefaultTarget, "rules.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "RULES-v1", string(got))
+	require.FileExists(t, filepath.Join(dir, DefaultTarget, "cli.md"))
+
+	// Assert：install 不改写 manifest/lock（与 update 的本质区别）
+	lockAfter, err := os.ReadFile(filepath.Join(dir, LockFile))
+	require.NoError(t, err)
+	assert.Equal(t, lockBefore, lockAfter, "install 不应改写 lock")
+	manifestAfter, err := os.ReadFile(filepath.Join(dir, ManifestFile))
+	require.NoError(t, err)
+	assert.Equal(t, manifestBefore, manifestAfter, "install 不应改写 manifest")
+
+	// Assert：install 后 Check 通过
+	require.NoError(t, s2.Check())
+}
+
+func TestSyncer_Install_RequiresLock(t *testing.T) {
+	// 未初始化（无 lock）→ install 报 ErrLockNotFound，不发起任何网络请求
+	dir := t.TempDir()
+	s := NewSyncer(dir, NewFetcher())
+	require.ErrorIs(t, s.Install(context.Background()), ErrLockNotFound)
+}
+
+func TestSyncer_Install_DigestMismatch_Fails(t *testing.T) {
+	// lock 被篡改 / 仓库历史被重写：物化内容与 lock digest 不符 → install 失败
+	srv := fakeGitHub(t, "", map[string]map[string]string{
+		"v1.0.0": {"steering/rules.md": "RULES-v1"},
+	})
+	defer srv.Close()
+	dir := t.TempDir()
+	ctx := context.Background()
+	s := NewSyncer(dir, NewFetcher(WithAPIBase(srv.URL)))
+	_, err := s.Add(ctx, "github.com/o/r", "v1.0.0", []string{"steering/"}, "")
+	require.NoError(t, err)
+
+	l, err := LoadLock(filepath.Join(dir, LockFile))
+	require.NoError(t, err)
+	l.Digest = "sha256:deadbeef"
+	require.NoError(t, SaveLock(filepath.Join(dir, LockFile), l))
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, DefaultTarget)))
+
+	s2 := NewSyncer(dir, NewFetcher(WithAPIBase(srv.URL)))
+	require.ErrorIs(t, s2.Install(ctx), ErrDigestMismatch)
+}
+
+func TestSyncer_Install_PinsCommitNotTag(t *testing.T) {
+	// add 钉住 v1.0.0（lock.Commit = sha-v1.0.0）
+	okSrv := fakeGitHub(t, "", map[string]map[string]string{
+		"v1.0.0": {"steering/rules.md": "RULES-v1"},
+	})
+	defer okSrv.Close()
+	dir := t.TempDir()
+	ctx := context.Background()
+	s := NewSyncer(dir, NewFetcher(WithAPIBase(okSrv.URL)))
+	_, err := s.Add(ctx, "github.com/o/r", "v1.0.0", []string{"steering/"}, "")
+	require.NoError(t, err)
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, DefaultTarget)))
+
+	// 切到一个 server：tag 路由全坏，仅 commit sha 路由可用。
+	// install 必须按 commit 下载才能成功——证明它钉的是不可变 commit，不是会动的 tag。
+	pinBody, err := io.ReadAll(makeTarball(t, "r-v1.0.0", map[string]string{"steering/rules.md": "RULES-v1"}))
+	require.NoError(t, err)
+	pinSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/o/r/tarball/sha-v1.0.0" {
+			_, _ = w.Write(pinBody)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer pinSrv.Close()
+
+	s2 := NewSyncer(dir, NewFetcher(WithAPIBase(pinSrv.URL)))
+	require.NoError(t, s2.Install(ctx), "install 应按 commit sha 下载，不依赖 tag")
+	got, err := os.ReadFile(filepath.Join(dir, DefaultTarget, "rules.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "RULES-v1", string(got))
 }
 
 // fakeGitHubTarballFails 解析 sha 正常，但 tarball 下载返回 500。
