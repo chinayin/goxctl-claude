@@ -19,11 +19,11 @@ func TestSaveLock_LoadLock_RoundTrip(t *testing.T) {
 	// Arrange
 	path := filepath.Join(t.TempDir(), LockFile)
 	in := &Lock{
-		Source:   "github.com/chinayin/goxctl-claude",
-		Version:  "v1.1.0",
-		Resolved: "9f3a2c1d",
-		Managed:  []string{"rules.md", "cli.md"},
-		Digest:   "sha256:ab12",
+		Source:  "github.com/chinayin/goxctl-claude",
+		Version: "v1.1.0",
+		Commit:  "9f3a2c1d",
+		Managed: []string{"rules.md", "cli.md"},
+		Digest:  "sha256:ab12",
 	}
 
 	// Act

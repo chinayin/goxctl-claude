@@ -183,11 +183,11 @@ func (s *Syncer) pull(ctx context.Context, m *Manifest, version string) (string,
 	}
 
 	if err := SaveLock(s.lockPath(), &Lock{
-		Source:   m.Source,
-		Version:  version,
-		Resolved: sha,
-		Managed:  managed,
-		Digest:   digest,
+		Source:  m.Source,
+		Version: version,
+		Commit:  sha,
+		Managed: managed,
+		Digest:  digest,
 	}); err != nil {
 		return "", err
 	}

@@ -10,11 +10,11 @@ type Manifest struct {
 
 // Lock 锁定已同步的规范版本（写入 LockFile，进 git）。
 type Lock struct {
-	Source   string   `yaml:"source"`
-	Version  string   `yaml:"version"`  // 人类可读 tag
-	Resolved string   `yaml:"resolved"` // commit sha，唯一完整性锚点
-	Managed  []string `yaml:"managed"`  // 受管文件相对路径，update 时自动生成
-	Digest   string   `yaml:"digest"`   // 受管文件整体摘要，供离线 check
+	Source  string   `yaml:"source"`
+	Version string   `yaml:"version"` // 人类可读 tag（可变，仅供阅读）
+	Commit  string   `yaml:"commit"`  // git commit sha，不可变，复现的唯一锚点
+	Managed []string `yaml:"managed"` // 受管文件相对路径，update 时自动生成
+	Digest  string   `yaml:"digest"`  // 受管文件整体摘要（sha256:<hex>，OCI 风格），供离线 check
 }
 
 const (

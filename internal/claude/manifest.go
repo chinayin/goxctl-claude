@@ -30,9 +30,9 @@ func LoadManifest(path string) (*Manifest, error) {
 
 // SaveManifest 将 manifest 写入指定路径。
 func SaveManifest(path string, m *Manifest) error {
-	data, err := yaml.Marshal(m)
+	data, err := marshalYAML(m)
 	if err != nil {
-		return fmt.Errorf("claude: marshal manifest: %w", err)
+		return err
 	}
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("claude: write manifest %q: %w", path, err)

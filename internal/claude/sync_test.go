@@ -58,7 +58,7 @@ func TestSyncer_Add_Check_Remove(t *testing.T) {
 
 	lock, err := LoadLock(filepath.Join(dir, LockFile))
 	require.NoError(t, err)
-	assert.Equal(t, "sha-v1.0.0", lock.Resolved)
+	assert.Equal(t, "sha-v1.0.0", lock.Commit)
 	assert.Equal(t, []string{"cli.md", "rules.md"}, lock.Managed)
 
 	// Check 通过；篡改后失败
@@ -91,7 +91,7 @@ func TestSyncer_Add_NoVersion_UsesLatest(t *testing.T) {
 	assert.Equal(t, "v2.0.0", m.Version)
 	lock, err := LoadLock(filepath.Join(dir, LockFile))
 	require.NoError(t, err)
-	assert.Equal(t, "sha-v2.0.0", lock.Resolved)
+	assert.Equal(t, "sha-v2.0.0", lock.Commit)
 }
 
 func TestSyncer_Update_UpgradesAndCleansStale(t *testing.T) {

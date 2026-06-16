@@ -29,7 +29,7 @@ var listCmd = &cobra.Command{
 		fmt.Fprintf(t, "version:\t%s\n", m.Version)
 		fmt.Fprintf(t, "target:\t%s\n", m.Target)
 		if l != nil {
-			fmt.Fprintf(t, "locked:\t%s @ %s\n", l.Version, l.Resolved)
+			fmt.Fprintf(t, "locked:\t%s @ %s\n", l.Version, l.Commit)
 			fmt.Fprintf(t, "managed:\t%d files\n", len(l.Managed))
 		} else {
 			fmt.Fprintf(t, "locked:\t(not synced yet, run `update`)\n")
