@@ -3,6 +3,7 @@ package claude
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +15,13 @@ import (
 // claudeTemplateInTarball 是仓库内 CLAUDE.md 模板的路径（剥离顶层目录后）。
 // 它随规范一起按 tag 拉取，内容返回给调用方用于生成项目入口，不写入 target。
 const claudeTemplateInTarball = "CLAUDE.template.md"
+
+const (
+	// maxFileSize 是单个受管文件解压后的体积上限（防解压炸弹）。
+	maxFileSize = 10 << 20 // 10MB
+	// maxTotalSize 是单次解压所有受管文件的总体积上限。
+	maxTotalSize = 50 << 20 // 50MB
+)
 
 // extractTarball 从 GitHub tarball 流中提取匹配 paths 的文件到 target，
 // 并顺带返回仓库根 CLAUDE.template.md 的内容（若存在）。
@@ -29,9 +37,10 @@ func extractTarball(r io.Reader, paths []string, target string) (managed []strin
 	defer gz.Close()
 
 	tr := tar.NewReader(gz)
+	var total int64
 	for {
 		hdr, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -45,11 +54,10 @@ func extractTarball(r io.Reader, paths []string, target string) (managed []strin
 
 		// CLAUDE 模板随规范一起拉取，内容返回（不写入 target，由 ensureEntrypoint 决定是否落地）
 		if rel == claudeTemplateInTarball {
-			b, err := io.ReadAll(tr)
+			claudeTemplate, err = readTemplate(tr)
 			if err != nil {
-				return nil, "", fmt.Errorf("claude: read template: %w", err)
+				return nil, "", err
 			}
-			claudeTemplate = string(b)
 			continue
 		}
 
@@ -57,14 +65,47 @@ func extractTarball(r io.Reader, paths []string, target string) (managed []strin
 		if !ok {
 			continue
 		}
-		if err := writeFile(filepath.Join(target, sub), tr, hdr.FileInfo().Mode().Perm()); err != nil {
+		written, err := writeManaged(target, sub, tr)
+		if err != nil {
 			return nil, "", err
+		}
+		total += written
+		if total > maxTotalSize {
+			return nil, "", fmt.Errorf("claude: extracted size exceeds %d bytes", maxTotalSize)
 		}
 		managed = append(managed, sub)
 	}
 
 	slices.Sort(managed)
 	return managed, claudeTemplate, nil
+}
+
+// readTemplate 读取归档中的 CLAUDE 模板内容，限制体积防解压炸弹。
+func readTemplate(r io.Reader) (string, error) {
+	b, err := io.ReadAll(io.LimitReader(r, maxFileSize+1))
+	if err == nil && len(b) > maxFileSize {
+		return "", fmt.Errorf("claude: %s exceeds %d bytes", claudeTemplateInTarball, maxFileSize)
+	}
+	if err != nil {
+		return "", fmt.Errorf("claude: read template: %w", err)
+	}
+	return string(b), nil
+}
+
+// writeManaged 将归档条目安全写入 target/sub，返回写入字节数。
+func writeManaged(target, sub string, r io.Reader) (int64, error) {
+	dst, err := safeJoin(target, sub)
+	if err != nil {
+		return 0, err
+	}
+	if err := writeFile(dst, r); err != nil {
+		return 0, err
+	}
+	fi, err := os.Stat(dst)
+	if err != nil {
+		return 0, fmt.Errorf("claude: stat %q: %w", dst, err)
+	}
+	return fi.Size(), nil
 }
 
 // stripTopDir 去掉 GitHub tarball 的顶层包裹目录（第一段路径）。
@@ -91,18 +132,32 @@ func matchPath(rel string, paths []string) (string, bool) {
 	return "", false
 }
 
-func writeFile(dst string, r io.Reader, mode os.FileMode) error {
+// safeJoin 把 sub 拼到 base 下，并确保结果不逃逸 base（防 tar-slip 路径穿越）。
+func safeJoin(base, sub string) (string, error) {
+	dst := filepath.Clean(filepath.Join(base, sub))
+	if dst != base && !strings.HasPrefix(dst, base+string(os.PathSeparator)) {
+		return "", fmt.Errorf("claude: unsafe path %q escapes target", sub)
+	}
+	return dst, nil
+}
+
+func writeFile(dst string, r io.Reader) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("claude: mkdir %q: %w", filepath.Dir(dst), err)
 	}
-	f, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	f, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644) // 固定权限，不信任归档
 	if err != nil {
 		return fmt.Errorf("claude: create %q: %w", dst, err)
 	}
 	defer f.Close()
 
-	if _, err := io.Copy(f, r); err != nil {
+	// 限制单文件体积，防解压炸弹；CopyN 复制至多 maxFileSize+1 字节以探测超限
+	n, err := io.CopyN(f, r, maxFileSize+1)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("claude: write %q: %w", dst, err)
+	}
+	if n > maxFileSize {
+		return fmt.Errorf("claude: %q exceeds %d bytes", dst, maxFileSize)
 	}
 	return nil
 }
