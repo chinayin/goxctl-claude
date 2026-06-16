@@ -194,3 +194,82 @@ func TestSyncer_Update_NoArg_UsesLatest(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "R2", string(got))
 }
+
+// fakeGitHubTarballFails 解析 sha 正常，但 tarball 下载返回 500。
+func fakeGitHubTarballFails(t *testing.T, tag string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/o/r/commits/" + tag:
+			_, _ = w.Write([]byte("sha-" + tag))
+		default: // tarball 及其它
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+}
+
+func TestSyncer_Add_FailedPull_IsRetryable(t *testing.T) {
+	// Arrange：tarball 下载失败的 server
+	failSrv := fakeGitHubTarballFails(t, "v1.0.0")
+	defer failSrv.Close()
+	dir := t.TempDir()
+	s := NewSyncer(dir, NewFetcher(WithAPIBase(failSrv.URL)))
+	ctx := context.Background()
+
+	// Act：add 应返回错误
+	_, err := s.Add(ctx, "github.com/o/r", "v1.0.0", []string{"steering/"}, "")
+	require.Error(t, err)
+
+	// Assert：manifest 不应写入磁盘（失败后可直接重试 add）
+	_, loadErr := LoadManifest(filepath.Join(dir, ManifestFile))
+	require.ErrorIs(t, loadErr, ErrManifestNotFound, "pull 失败后 manifest 不应存在")
+
+	// Act：换用正常 server，重试 add 应成功
+	okSrv := fakeGitHub(t, "", map[string]map[string]string{
+		"v1.0.0": {"steering/rules.md": "RULES-v1", "steering/cli.md": "CLI"},
+	})
+	defer okSrv.Close()
+	s2 := NewSyncer(dir, NewFetcher(WithAPIBase(okSrv.URL)))
+	_, err = s2.Add(ctx, "github.com/o/r", "v1.0.0", []string{"steering/"}, "")
+	require.NoError(t, err, "重试 add 应成功")
+
+	got, err := os.ReadFile(filepath.Join(dir, DefaultTarget, "rules.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "RULES-v1", string(got))
+}
+
+func TestSyncer_Update_FailedDownload_KeepsFiles(t *testing.T) {
+	// Arrange：先用正常 server 做 v1.0.0 的 add
+	okSrv := fakeGitHub(t, "", map[string]map[string]string{
+		"v1.0.0": {"steering/rules.md": "RULES-v1", "steering/cli.md": "CLI"},
+	})
+	defer okSrv.Close()
+	dir := t.TempDir()
+	s := NewSyncer(dir, NewFetcher(WithAPIBase(okSrv.URL)))
+	ctx := context.Background()
+	_, err := s.Add(ctx, "github.com/o/r", "v1.0.0", []string{"steering/"}, "")
+	require.NoError(t, err)
+
+	// 确认 v1 文件已落盘
+	require.FileExists(t, filepath.Join(dir, DefaultTarget, "rules.md"))
+	require.FileExists(t, filepath.Join(dir, DefaultTarget, "cli.md"))
+
+	// Act：用下载失败的 server 尝试升级到 v2.0.0
+	failSrv := fakeGitHubTarballFails(t, "v2.0.0")
+	defer failSrv.Close()
+	s2 := NewSyncer(dir, NewFetcher(WithAPIBase(failSrv.URL)))
+	err = s2.Update(ctx, "v2.0.0")
+	require.Error(t, err)
+
+	// Assert：v1 的文件仍然存在，未被清理
+	gotRules, err := os.ReadFile(filepath.Join(dir, DefaultTarget, "rules.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "RULES-v1", string(gotRules), "下载失败后 rules.md 应保持 v1 内容")
+
+	_, err = os.Stat(filepath.Join(dir, DefaultTarget, "cli.md"))
+	assert.False(t, os.IsNotExist(err), "下载失败后 cli.md 应仍然存在")
+
+	// Assert：Check 对 v1 lock 仍然通过（文件未被篡改）
+	sCheck := NewSyncer(dir, NewFetcher(WithAPIBase(okSrv.URL)))
+	require.NoError(t, sCheck.Check(), "v1 lock 的 Check 应通过")
+}
