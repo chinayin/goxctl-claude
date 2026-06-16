@@ -11,6 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// version 在构建时通过 -ldflags "-X main.version=vX.Y.Z" 注入。
+var version = "dev"
+
 var rootCmd = &cobra.Command{
 	Use:   "claude",
 	Short: "Sync team AI collaboration config (steering / CLAUDE.md)",
@@ -52,7 +55,39 @@ func init() {
 			debug.Enable()
 		}
 	}
+
+	// version 走 -V（大写）短旗，凑齐 -v/-V/-h 三件套。root 的 --version 为局部 flag，
+	// 不会与 add 子命令的 --version（规范版本）冲突。
+	rootCmd.Version = version
+	rootCmd.Flags().BoolP("version", "V", false, "print version and exit")
+
+	// 去噪：移除自动生成的 completion 子命令、隐藏 help 子命令。
+	// cobra 默认模板用 (eq .Name "help") 硬编码强制列出 help，.Hidden 对它无效；
+	// 故自定义一个真名非 "help" 的隐藏命令、用别名 "help" 接管。
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	rootCmd.SetHelpCommand(newHiddenHelpCmd())
 	rootCmd.AddCommand(addCmd, updateCmd, removeCmd, listCmd, checkCmd)
+}
+
+// newHiddenHelpCmd 复刻 cobra 默认 help 命令的行为，但真名非 "help" 且 Hidden，
+// 从而不出现在命令列表里（见 init 注释）。
+func newHiddenHelpCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "help-topic [command]",
+		Aliases: []string{"help"},
+		Short:   "Help about any command",
+		Hidden:  true,
+		Run: func(c *cobra.Command, args []string) {
+			target, _, err := c.Root().Find(args)
+			if target == nil || err != nil {
+				_ = c.Root().Usage()
+				return
+			}
+			target.InitDefaultHelpFlag()
+			target.InitDefaultVersionFlag()
+			_ = target.Help()
+		},
+	}
 }
 
 // newSyncer 基于当前工作目录与环境 token（GH_TOKEN / GITHUB_TOKEN）构建 Syncer。

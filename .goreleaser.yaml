@@ -16,7 +16,7 @@ builds:
     goos: [darwin, linux]
     goarch: [amd64, arm64]
     ldflags:
-      - -s -w
+      - -s -w -X main.version={{ .Version }}
 
 archives:
   # 产物名不含版本号：与 goxctl extension install 的平台后缀匹配规则对齐
