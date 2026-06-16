@@ -1,6 +1,9 @@
 package main
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/chinayin/goxctl-claude/internal/ui"
+	"github.com/spf13/cobra"
+)
 
 var removeCmd = &cobra.Command{
 	Use:   "remove",
@@ -12,6 +15,10 @@ var removeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		return s.Remove()
+		if err := s.Remove(); err != nil {
+			return err
+		}
+		ui.Successf(cmd.OutOrStdout(), "removed managed files and manifest/lock")
+		return nil
 	},
 }

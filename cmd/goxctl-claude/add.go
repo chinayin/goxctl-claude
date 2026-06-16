@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/chinayin/goxctl-claude/internal/claude"
+	"github.com/chinayin/goxctl-claude/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -44,11 +45,11 @@ Also generates a top-level CLAUDE.md entrypoint if the project has none (left un
 			return err
 		}
 		out := cmd.OutOrStdout()
-		fmt.Fprintf(out, "added %s@%s -> %s\n", m.Source, m.Version, m.Target)
+		ui.Successf(out, "added %s@%s → %s", m.Source, m.Version, m.Target)
 		if created {
-			fmt.Fprintf(out, "generated %s\n", claude.ClaudeMdFile)
+			ui.Successf(out, "generated %s", claude.ClaudeMdFile)
 		} else {
-			fmt.Fprintf(out, "%s left as-is (already present, or no template in this version)\n", claude.ClaudeMdFile)
+			fmt.Fprintf(out, "%s left as-is (already present, or no template)\n", claude.ClaudeMdFile)
 		}
 		return nil
 	},

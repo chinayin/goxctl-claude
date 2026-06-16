@@ -1,6 +1,9 @@
 package main
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/chinayin/goxctl-claude/internal/ui"
+	"github.com/spf13/cobra"
+)
 
 var updateCmd = &cobra.Command{
 	Use:   "update [version]",
@@ -22,6 +25,14 @@ Both rewrite the manifest and lock; review the .kiro/steering changes via git di
 		if len(args) == 1 {
 			version = args[0]
 		}
-		return s.Update(cmd.Context(), version)
+		if err := s.Update(cmd.Context(), version); err != nil {
+			return err
+		}
+		m, _, err := s.Status()
+		if err != nil {
+			return err
+		}
+		ui.Successf(cmd.OutOrStdout(), "updated to %s", m.Version)
+		return nil
 	},
 }

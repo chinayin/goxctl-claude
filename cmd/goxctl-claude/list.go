@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/chinayin/goxctl-claude/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -22,17 +23,22 @@ var listCmd = &cobra.Command{
 		}
 
 		out := cmd.OutOrStdout()
-		fmt.Fprintf(out, "source:  %s\n", m.Source)
-		fmt.Fprintf(out, "version: %s\n", m.Version)
-		fmt.Fprintf(out, "target:  %s\n", m.Target)
-		if l == nil {
-			fmt.Fprintln(out, "lock:    (not synced yet, run `update`)")
-			return nil
+		t := ui.Table(out)
+		fmt.Fprintf(t, "source:\t%s\n", m.Source)
+		fmt.Fprintf(t, "version:\t%s\n", m.Version)
+		fmt.Fprintf(t, "target:\t%s\n", m.Target)
+		if l != nil {
+			fmt.Fprintf(t, "locked:\t%s @ %s\n", l.Version, l.Resolved)
+			fmt.Fprintf(t, "managed:\t%d files\n", len(l.Managed))
+		} else {
+			fmt.Fprintf(t, "locked:\t(not synced yet, run `update`)\n")
 		}
-		fmt.Fprintf(out, "locked:  %s @ %s\n", l.Version, l.Resolved)
-		fmt.Fprintf(out, "managed: %d files\n", len(l.Managed))
-		for _, f := range l.Managed {
-			fmt.Fprintf(out, "  - %s\n", f)
+		t.Flush()
+
+		if l != nil {
+			for _, f := range l.Managed {
+				fmt.Fprintf(out, "  - %s\n", f)
+			}
 		}
 		return nil
 	},

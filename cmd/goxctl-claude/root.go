@@ -7,6 +7,7 @@ import (
 	"os/signal"
 
 	"github.com/chinayin/goxctl-claude/internal/claude"
+	"github.com/chinayin/goxctl-claude/internal/debug"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +38,12 @@ func run() error {
 }
 
 func init() {
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "enable verbose debug output (or set GOXCTL_DEBUG=1)")
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
+		if v, _ := cmd.Flags().GetBool("verbose"); v {
+			debug.Enable()
+		}
+	}
 	rootCmd.AddCommand(addCmd, updateCmd, removeCmd, listCmd, checkCmd)
 }
 

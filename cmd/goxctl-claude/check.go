@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-
+	"github.com/chinayin/goxctl-claude/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +18,7 @@ var checkCmd = &cobra.Command{
 		if err := s.Check(); err != nil {
 			return err
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "ok: managed files match lock")
+		ui.Successf(cmd.OutOrStdout(), "managed files match lock")
 		return nil
 	},
 }
