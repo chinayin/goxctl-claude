@@ -25,6 +25,12 @@ owner/repo (host defaults to github.com), or given in full as github.com/owner/r
 If --version is omitted, the latest release is resolved and pinned (still reproducible, not rolling latest).
 
 Also generates a top-level CLAUDE.md entrypoint if the project has none (left untouched if it exists).`,
+	Example: `  # Use the default team standards source, pin the latest release
+  goxctl claude add
+
+  # Use a different source, or pin a version
+  goxctl claude add chinayin/gox-claude-standards
+  goxctl claude add --version v0.1.0`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true

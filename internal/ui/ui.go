@@ -19,6 +19,7 @@ var color = func() bool {
 
 const (
 	green = "\033[32m"
+	gray  = "\033[2m"
 	reset = "\033[0m"
 )
 
@@ -29,6 +30,21 @@ func Successf(w io.Writer, format string, args ...any) {
 		mark = green + "✓" + reset
 	}
 	fmt.Fprintf(w, "%s %s\n", mark, fmt.Sprintf(format, args...))
+}
+
+// Stepf 打印一行“进行中”的步骤提示（无 ✓ 标记，自带换行），
+// 例如 "Pulling chinayin/gox-claude-standards v0.1.0..."；操作完成后再用 Successf。
+func Stepf(w io.Writer, format string, args ...any) {
+	fmt.Fprintln(w, fmt.Sprintf(format, args...))
+}
+
+// Dim 把次要文本在 TTY 下显示为暗色，管道/NO_COLOR 下原样返回。
+// ANSI 转义会被 tabwriter 计入宽度，故仅可用于表格最后一列或非表格行。
+func Dim(s string) string {
+	if !color {
+		return s
+	}
+	return gray + s + reset
 }
 
 // Table 返回对齐表格 writer（列以 \t 分隔）。

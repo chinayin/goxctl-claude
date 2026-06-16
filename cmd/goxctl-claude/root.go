@@ -19,6 +19,14 @@ project (default .kiro/steering), shared by Kiro and Claude Code; the version is
 locked in .gox-claude.lock.
 
 Typically used as a goxctl subcommand: goxctl claude <command>.`,
+	Example: `  # First-time init: pull the team standards and pin the latest release
+  goxctl claude add
+
+  # Upgrade to the latest standards release
+  goxctl claude update
+
+  # Verify local files still match the lock (CI)
+  goxctl claude check`,
 	// 不设 SilenceUsage：参数/flag 用法错误时显示 usage；业务错误在各 RunE 开头抑制。
 	SilenceErrors: true, // 错误由 Execute 统一打印
 }

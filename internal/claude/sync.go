@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/chinayin/goxctl-claude/internal/ui"
 )
 
 // Syncer 在某个项目目录下执行规范同步（add/update/check/remove）。
@@ -137,6 +139,7 @@ func (s *Syncer) pull(ctx context.Context, m *Manifest, version string) (string,
 	if err != nil {
 		return "", err
 	}
+	ui.Stepf(os.Stdout, "Pulling %s %s...", m.Source, version)
 
 	target := filepath.Join(s.dir, m.Target)
 

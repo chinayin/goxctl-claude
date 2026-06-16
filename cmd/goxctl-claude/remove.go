@@ -6,9 +6,10 @@ import (
 )
 
 var removeCmd = &cobra.Command{
-	Use:   "remove",
-	Short: "Remove managed files and manifest/lock (leaves your own files untouched)",
-	Args:  cobra.NoArgs,
+	Use:     "remove",
+	Aliases: []string{"rm"},
+	Short:   "Remove managed files and manifest/lock (leaves your own files untouched)",
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		cmd.SilenceUsage = true
 		s, err := newSyncer()

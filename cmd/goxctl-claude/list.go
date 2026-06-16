@@ -8,9 +8,10 @@ import (
 )
 
 var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "Show the current source, version and managed files",
-	Args:  cobra.NoArgs,
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "Show the current source, version and managed files",
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		cmd.SilenceUsage = true
 		s, err := newSyncer()
@@ -37,7 +38,8 @@ var listCmd = &cobra.Command{
 
 		if l != nil {
 			for _, f := range l.Managed {
-				fmt.Fprintf(out, "  - %s\n", f)
+				// 受管文件清单是补充信息，暗色显示（非表格行，不影响对齐）
+				fmt.Fprintf(out, "  - %s\n", ui.Dim(f))
 			}
 		}
 		return nil
