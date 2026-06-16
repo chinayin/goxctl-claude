@@ -1,13 +1,18 @@
 package claude
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/chinayin/goxctl-claude/internal/ui"
 )
+
+// maxTarballBytes 是下载的 tarball（压缩态）体积上限，防止异常巨大的响应耗尽内存。
+const maxTarballBytes = 50 << 20 // 50MB
 
 // Syncer 在某个项目目录下执行规范同步（add/update/check/remove）。
 type Syncer struct {
@@ -49,11 +54,11 @@ func (s *Syncer) Add(ctx context.Context, source, version string, paths []string
 	}
 
 	m := &Manifest{Source: source, Version: version, Paths: paths, Target: target}
-	if err := SaveManifest(s.manifestPath(), m); err != nil {
-		return false, err
-	}
 	tmpl, err := s.pull(ctx, m, version)
 	if err != nil {
+		return false, err // pull 失败：不留下 manifest，add 可直接重试
+	}
+	if err := SaveManifest(s.manifestPath(), m); err != nil {
 		return false, err
 	}
 	// CLAUDE.md 模板随规范一起拉取（与 steering 同版本），据此生成项目入口
@@ -141,22 +146,30 @@ func (s *Syncer) pull(ctx context.Context, m *Manifest, version string) (string,
 	}
 	ui.Stepf(os.Stdout, "Pulling %s %s...", m.Source, version)
 
+	// 先把 tarball 完整下载到内存（有界）：网络失败发生在删除旧文件之前，失败即无副作用
+	rc, err := s.fetcher.DownloadTarball(ctx, ref, version)
+	if err != nil {
+		return "", err
+	}
+	buf, err := io.ReadAll(io.LimitReader(rc, maxTarballBytes+1))
+	_ = rc.Close()
+	if err != nil {
+		return "", fmt.Errorf("claude: download %s@%s: %w", m.Source, version, err)
+	}
+	if int64(len(buf)) > maxTarballBytes {
+		return "", fmt.Errorf("claude: tarball %s@%s exceeds %d bytes", m.Source, version, maxTarballBytes)
+	}
+
 	target := filepath.Join(s.dir, m.Target)
 
-	// 部分托管：只清理上一版 lock 记录的受管文件，不动项目自有 steering
+	// 部分托管：下载成功后才清理上一版 lock 记录的受管文件
 	if old, lockErr := LoadLock(s.lockPath()); lockErr == nil {
 		if err := removeManaged(target, old.Managed); err != nil {
 			return "", err
 		}
 	}
 
-	rc, err := s.fetcher.DownloadTarball(ctx, ref, version)
-	if err != nil {
-		return "", err
-	}
-	defer rc.Close()
-
-	managed, claudeTemplate, err := extractTarball(rc, m.Paths, target)
+	managed, claudeTemplate, err := extractTarball(bytes.NewReader(buf), m.Paths, target)
 	if err != nil {
 		return "", err
 	}
