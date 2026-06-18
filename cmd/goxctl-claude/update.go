@@ -26,7 +26,7 @@ Both rewrite the manifest and lock; review the .kiro/steering changes via git di
 			version = args[0]
 		}
 		if err := s.Update(cmd.Context(), version); err != nil {
-			return err
+			return notInitializedHint(err)
 		}
 		m, _, err := s.Status()
 		if err != nil {

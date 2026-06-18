@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -104,4 +105,13 @@ func newSyncer() (*claude.Syncer, error) {
 		token = os.Getenv("GITHUB_TOKEN")
 	}
 	return claude.NewSyncer(dir, claude.NewFetcher(claude.WithToken(token))), nil
+}
+
+// notInitializedHint 把“项目未初始化”（无 lock 或无 manifest）的裸错误翻译成可执行的
+// 下一步提示；其它错误原样返回。install/check/update 共用，统一引导到 'add'。
+func notInitializedHint(err error) error {
+	if errors.Is(err, claude.ErrLockNotFound) || errors.Is(err, claude.ErrManifestNotFound) {
+		return fmt.Errorf("this project isn't initialized yet; run 'goxctl claude add' first")
+	}
+	return err
 }

@@ -23,7 +23,7 @@ clone or CI has only the manifest + lock and needs to restore the locked version
 			return err
 		}
 		if err := s.Install(cmd.Context()); err != nil {
-			return err
+			return notInitializedHint(err)
 		}
 		ui.Successf(cmd.OutOrStdout(), "installed from lock")
 		return nil

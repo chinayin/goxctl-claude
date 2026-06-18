@@ -16,7 +16,7 @@ var checkCmd = &cobra.Command{
 			return err
 		}
 		if err := s.Check(); err != nil {
-			return err
+			return notInitializedHint(err)
 		}
 		ui.Successf(cmd.OutOrStdout(), "managed files match lock")
 		return nil
